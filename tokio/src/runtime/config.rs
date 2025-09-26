@@ -24,6 +24,10 @@ pub(crate) struct Config {
     /// To run after each task is terminated.
     pub(crate) after_termination: Option<TaskCallback>,
 
+    // -- start tokio-rt --
+    pub prio: thread_priority::ThreadPriority,    
+    // -- end tokio-rt -- 
+
     /// To run before each poll
     #[cfg(tokio_unstable)]
     pub(crate) before_poll: Option<TaskCallback>,

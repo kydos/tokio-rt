@@ -64,6 +64,11 @@ pub struct Builder {
     /// Only used when not using the current-thread executor.
     worker_threads: Option<usize>,
 
+    // -- start tokio-rt --
+    /// Defines the priority used by the worker threads
+    pub prio: thread_priority::ThreadPriority,    
+    // -- end tokio-rt --
+
     /// Cap on thread usage.
     max_blocking_threads: usize,
 
@@ -223,6 +228,8 @@ pub(crate) enum Kind {
 }
 
 impl Builder {
+
+    
     /// Returns a new builder with the current thread scheduler selected.
     ///
     /// Configuration methods can be chained on the return value.
@@ -312,6 +319,8 @@ impl Builder {
             metrics_poll_count_histogram: HistogramBuilder::default(),
 
             disable_lifo_slot: false,
+            
+            prio: thread_priority::ThreadPriority::Crossplatform(50.try_into().unwrap())
         }
     }
 
@@ -408,6 +417,15 @@ impl Builder {
         self
     }
 
+    // -- start tokio-rt --
+
+    /// Sets the priority to be used for the worker threads.
+    pub fn priority(&mut self, prio: thread_priority::ThreadPriority)  -> &mut Self {
+        self.prio = prio;
+        self
+    }
+    // -- end tokio-rt --
+    
     /// Specifies the limit for additional threads spawned by the Runtime.
     ///
     /// These threads are used for blocking operations like tasks spawned
@@ -1504,6 +1522,7 @@ impl Builder {
                 disable_lifo_slot: self.disable_lifo_slot,
                 seed_generator: seed_generator_1,
                 metrics_poll_count_histogram: self.metrics_poll_count_histogram_builder(),
+                prio: self.prio.clone(),
             },
             local_tid,
         );
@@ -1682,6 +1701,7 @@ cfg_rt_multi_thread! {
                     disable_lifo_slot: self.disable_lifo_slot,
                     seed_generator: seed_generator_1,
                     metrics_poll_count_histogram: self.metrics_poll_count_histogram_builder(),
+                    prio: self.prio.clone()
                 },
             );
 

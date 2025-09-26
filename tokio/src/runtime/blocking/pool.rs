@@ -1,5 +1,7 @@
 //! Thread pool for blocking operations
 
+use thread_priority::ThreadPriority;
+
 use crate::loom::sync::{Arc, Condvar, Mutex};
 use crate::loom::thread;
 use crate::runtime::blocking::schedule::BlockingSchedule;
@@ -100,6 +102,9 @@ struct Inner {
 
     // Metrics about the pool.
     metrics: SpawnerMetrics,
+
+    // Thread Priority
+    prio: ThreadPriority
 }
 
 struct Shared {
@@ -119,6 +124,7 @@ struct Shared {
     /// This is a counter used to iterate `worker_threads` in a consistent order (for loom's
     /// benefit).
     worker_thread_index: usize,
+    
 }
 
 pub(crate) struct Task {
@@ -221,7 +227,7 @@ impl BlockingPool {
                         shutdown_tx: Some(shutdown_tx),
                         last_exiting_thread: None,
                         worker_threads: HashMap::new(),
-                        worker_thread_index: 0,
+                        worker_thread_index: 0,    
                     }),
                     condvar: Condvar::new(),
                     thread_name: builder.thread_name.clone(),
@@ -231,6 +237,7 @@ impl BlockingPool {
                     thread_cap,
                     keep_alive,
                     metrics: SpawnerMetrics::default(),
+                    prio: builder.prio.clone()
                 }),
             },
             shutdown_rx,
@@ -459,7 +466,7 @@ impl Spawner {
         shutdown_tx: shutdown::Sender,
         rt: &Handle,
         id: usize,
-    ) -> io::Result<thread::JoinHandle<()>> {
+    ) -> io::Result<thread::JoinHandle<()>> {        
         let mut builder = thread::Builder::new().name((self.inner.thread_name)());
 
         if let Some(stack_size) = self.inner.stack_size {
@@ -467,8 +474,11 @@ impl Spawner {
         }
 
         let rt = rt.clone();
-
+        let prio = self.inner.prio.clone();
         builder.spawn(move || {
+            // -- start tokio-rt -- 
+            let _ = thread_priority::set_current_thread_priority(prio);
+            // -- end tokio-rt  -- 
             // Only the reference should be moved into the closure
             let _enter = rt.enter();
             rt.inner.blocking_spawner().inner.run(id);
